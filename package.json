@@ -8,7 +8,10 @@
     "build": "tsc && npx vite build",
     "preview": "npx vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"npx wait-on tcp:5173 && npx electron .\"",
-    "electron:build": "npx vite build && electron-builder"
+    "electron:build": "npx vite build && electron-builder",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +25,7 @@
     "recharts": "^2.10.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",

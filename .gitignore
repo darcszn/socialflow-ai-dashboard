@@ -29,3 +29,8 @@ release
 # Project Tracking
 tasks.md
 task.md
+
+# E2E Test artifacts
+test-results/
+playwright-report/
+playwright/.cache/
