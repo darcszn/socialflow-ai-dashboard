@@ -8,6 +8,7 @@ import { CreatePost } from './components/CreatePost';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Inbox } from './components/Inbox';
 import { Settings } from './components/Settings';
+import { DebugTools } from './components/DebugTools';
 import { View } from './types';
 
 const App: React.FC = () => {
@@ -24,6 +25,7 @@ const App: React.FC = () => {
       case View.MEDIA_LIBRARY: return <MediaLibrary {...props} />;
       case View.INBOX: return <Inbox {...props} />;
       case View.SETTINGS: return <Settings {...props} />;
+      case View.DEBUG_TOOLS: return <DebugTools {...props} />;
       default: return <Dashboard {...props} />;
     }
   };
