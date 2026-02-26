@@ -1,148 +1,208 @@
-# Quick Start Guide - Transaction Queue Management
+# Quick Start Guide - Soroban Contract Events & Templates
 
-## For Reviewers & Testers
+## Installation
 
-### 1. Checkout the Branch
+The implementation is already integrated. Dependencies installed:
 ```bash
-git checkout features/issue-803.2-Staging-Dock-Transaction-Queue-Management-2
+npm install @stellar/stellar-sdk
 ```
 
-### 2. Install Dependencies (if needed)
-```bash
-npm install
+## Basic Usage
+
+### 1. Import the Module
+
+```typescript
+import {
+  smartContractService,
+  CONTRACT_TEMPLATES,
+  ContractEventType,
+  getTemplateById
+} from './src/blockchain';
 ```
 
-### 3. Run the Application
-```bash
-npm run electron:dev
+### 2. Browse Contract Templates
+
+```typescript
+// View all available templates
+console.log('Available templates:', CONTRACT_TEMPLATES.length);
+
+CONTRACT_TEMPLATES.forEach(template => {
+  console.log(`- ${template.name} (${template.type})`);
+  console.log(`  WASM: ${template.wasmHash}`);
+});
+
+// Get specific template
+const engagementTemplate = getTemplateById('engagement-rewards-v1');
+console.log('Parameters:', engagementTemplate.parameters);
 ```
 
-### 4. Navigate to Staging Dock
-- Click "Staging Dock" in the sidebar (inventory icon)
-- You should see an empty transaction queue
+### 3. Process Transaction Events
 
-### 5. Test Transaction Flow
+```typescript
+// When you receive a Stellar transaction
+const events = await smartContractService.processTransaction(
+  transactionHash,      // '0xabc...'
+  transactionMeta,      // Base64 XDR from Stellar
+  contractId,           // 'CCCC...'
+  ledgerNumber          // 12345
+);
 
-#### Add a Single Transaction
-Open browser DevTools console (F12) and run:
-```javascript
-window.demoTransaction()
+console.log(`Extracted ${events.length} events`);
 ```
 
-**Expected Result:**
-- Transaction appears with yellow "Pending" status
-- After ~500ms, status changes to teal "Dispatched" with spinning icon
-- After ~2-10 seconds, status changes to green "Confirmed"
-- "Success!" badge appears for 3 seconds
+### 4. Query Stored Events
 
-#### Add Multiple Transactions
-```javascript
-// Add 5 transactions with 1-second delay between each
-for(let i = 0; i < 5; i++) {
-  setTimeout(() => window.demoTransaction(), i * 1000);
+```typescript
+// Get all events for a contract
+const contractEvents = await smartContractService.getContractEvents(
+  'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'
+);
+
+// Get events by type
+const rewards = await smartContractService.getEventsByType(
+  ContractEventType.REWARD_DISTRIBUTED
+);
+
+// Get recent events
+const recent = await smartContractService.getRecentEvents(20);
+```
+
+### 5. Parse Event Data
+
+```typescript
+// Parse reward events
+const rewardData = smartContractService.parseRewardEvents(events);
+rewardData.forEach(reward => {
+  console.log(`${reward.recipient} received ${reward.amount} ${reward.token}`);
+});
+
+// Parse milestone events
+const milestones = smartContractService.parseMilestoneEvents(events);
+milestones.forEach(m => {
+  console.log(`${m.user} reached milestone ${m.milestone}, reward: ${m.reward}`);
+});
+
+// Parse referral events
+const referrals = smartContractService.parseReferralEvents(events);
+referrals.forEach(r => {
+  console.log(`${r.referrer} referred ${r.referee}, reward: ${r.reward}`);
+});
+```
+
+### 6. Get Statistics
+
+```typescript
+const stats = await smartContractService.getEventStats();
+console.log(`Total events: ${stats.total}`);
+console.log('By type:', stats.byType);
+
+// For specific contract
+const contractStats = await smartContractService.getEventStats(contractId);
+```
+
+## Contract Templates
+
+### Engagement Rewards
+```typescript
+const template = getTemplateById('engagement-rewards-v1');
+// Use template.wasmHash for deployment
+// Configure parameters:
+// - reward_token: Token address
+// - like_reward: 10 (default)
+// - comment_reward: 25 (default)
+// - share_reward: 50 (default)
+// - max_rewards_per_user: 1000 (default)
+```
+
+### Referral Program
+```typescript
+const template = getTemplateById('referral-program-v1');
+// Parameters:
+// - reward_token: Token address
+// - referrer_reward: 100 (default)
+// - referee_reward: 50 (default)
+// - min_engagement_threshold: 5 (default)
+// - max_referrals_per_user: 50 (default)
+```
+
+### Milestone Bonus
+```typescript
+const template = getTemplateById('milestone-bonus-v1');
+// Parameters:
+// - reward_token: Token address
+// - milestone_1k: 1000 (default)
+// - milestone_10k: 10000 (default)
+// - milestone_100k: 100000 (default)
+// - milestone_1m: 1000000 (default)
+// - auto_distribute: true (default)
+```
+
+## Event Types
+
+```typescript
+enum ContractEventType {
+  REWARD_DISTRIBUTED = 'reward_distributed',
+  CAMPAIGN_CREATED = 'campaign_created',
+  CAMPAIGN_COMPLETED = 'campaign_completed',
+  MILESTONE_REACHED = 'milestone_reached',
+  REFERRAL_REGISTERED = 'referral_registered',
+  ENGAGEMENT_RECORDED = 'engagement_recorded',
 }
 ```
 
-**Expected Result:**
-- All transactions process independently
-- Counter shows "X Pending" and "Y Confirmed"
-- UI remains responsive
+## Integration Example
 
-#### Stress Test (50 transactions)
-```javascript
-for(let i = 0; i < 50; i++) window.demoTransaction();
+```typescript
+// In your Stellar transaction handler
+async function handleStellarTransaction(tx) {
+  // Extract transaction details
+  const { hash, meta, contractId, ledger } = tx;
+  
+  // Process events
+  const events = await smartContractService.processTransaction(
+    hash,
+    meta,
+    contractId,
+    ledger
+  );
+  
+  // Handle specific event types
+  const rewards = smartContractService.parseRewardEvents(events);
+  
+  // Update UI or trigger notifications
+  rewards.forEach(reward => {
+    notifyUser(reward.recipient, `You received ${reward.amount} tokens!`);
+  });
+}
 ```
 
-**Expected Result:**
-- Smooth scrolling
-- No lag or freezing
-- All transactions render correctly
+## Testing
 
-### 6. Verify Features
-
-#### ✅ Optimistic Status Visuals (Issue #803.5)
-- [ ] Dispatched status appears immediately (within 1 second)
-- [ ] Animations are smooth and non-blocking
-- [ ] Background polling works (check Network tab - no requests, it's simulated)
-- [ ] Status updates silently (no alerts/modals)
-- [ ] Success notification appears and fades after 3 seconds
-
-#### ✅ Transaction Status Indicators (Issue #803.6)
-- [ ] Pending: Yellow clock icon
-- [ ] Dispatched: Teal send icon with spin animation
-- [ ] Confirmed: Green checkmark icon
-- [ ] Failed: Red X icon (modify code to test)
-- [ ] Animated progress: Spinning + ping effect on dispatched
-- [ ] Color-coded badges: Each status has distinct color
-- [ ] Estimated time: "~5s" shows for dispatched transactions
-- [ ] Retry button: Appears on failed transactions
-
-### 7. Check Code Quality
-
-#### TypeScript Compilation
+Run the example:
 ```bash
-npm run build
-```
-**Expected:** No TypeScript errors
-
-#### File Structure
-```
-blockchain/
-├── components/          # 4 React components
-├── types/              # Transaction types
-├── utils/              # Demo utility
-├── index.ts            # Exports
-├── README.md           # Documentation
-└── TESTING.md          # Test checklist
+npx ts-node examples/contractEventsExample.ts
 ```
 
-### 8. Review Documentation
+Run tests:
+```bash
+npm test src/blockchain/__tests__/contract.test.ts
+```
 
-- **blockchain/README.md** - Implementation details
-- **blockchain/TESTING.md** - Comprehensive test checklist
-- **PR_SUMMARY.md** - Pull request summary
-- **IMPLEMENTATION_SUMMARY.md** - Final summary
+## Storage
 
-### Common Issues & Solutions
+Events are automatically stored in IndexedDB:
+- Database: `socialflow_blockchain`
+- Store: `contract_events`
+- Indexes: contractId, type, timestamp, transactionHash
 
-#### Issue: `window.demoTransaction is not a function`
-**Solution:** Make sure you're on the Staging Dock page. The function is only available when the component is mounted.
+## Next Steps
 
-#### Issue: Transactions not confirming
-**Solution:** This is expected behavior - confirmation is randomized (70% chance every 2 seconds). Wait up to 10 seconds.
+1. Connect to Stellar Horizon API for real transaction data
+2. Set up WebSocket for real-time event monitoring
+3. Create UI components to display events
+4. Implement contract deployment from templates
+5. Add push notifications for important events
 
-#### Issue: Animations not smooth
-**Solution:** Check if hardware acceleration is enabled in browser settings.
+## Support
 
-### Key Files to Review
-
-1. **TransactionQueueManager.tsx** - Core queue logic with polling
-2. **TransactionStatusIndicator.tsx** - Status display with animations
-3. **TransactionQueueItem.tsx** - Individual transaction UI
-4. **transaction.ts** - Type definitions
-
-### Performance Benchmarks
-
-- **50 transactions**: Smooth scrolling, no lag
-- **Polling interval**: 2 seconds (only when dispatched transactions exist)
-- **Animation FPS**: 60fps on modern hardware
-- **Memory usage**: Minimal (< 5MB for 50 transactions)
-
-### Browser Compatibility
-
-Tested on:
-- ✅ Chrome 120+
-- ✅ Edge 120+
-- ✅ Firefox 120+
-- ✅ Electron 28.0.0
-
-### Questions?
-
-Check the documentation:
-- Implementation: `blockchain/README.md`
-- Testing: `blockchain/TESTING.md`
-- PR Details: `PR_SUMMARY.md`
-
----
-
-**Happy Testing! 🚀**
+See full documentation: `src/blockchain/README.md`

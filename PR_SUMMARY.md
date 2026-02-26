@@ -1,170 +1,197 @@
-# Pull Request: Issue #803.2 - Staging Dock Transaction Queue Management/2
+# Pull Request: Soroban Contract Bridge (Issue #201)
 
-## Summary
-Implementation of optimistic status visuals and transaction status indicators for the Staging Dock transaction queue management system in SocialFlow.
+## Overview
+This PR implements the Soroban Contract Bridge feature, enabling SocialFlow to interact with Stellar smart contracts for automated engagement distribution, budgeting treasuries, and public verification.
 
 ## Changes Made
 
-### New Files Created
-1. **blockchain/types/transaction.ts** - Transaction type definitions
-2. **blockchain/components/TransactionStatusIndicator.tsx** - Status icons and badges
-3. **blockchain/components/TransactionQueueItem.tsx** - Individual transaction display
-4. **blockchain/components/TransactionQueueManager.tsx** - Queue manager with polling
-5. **blockchain/components/StagingDock.tsx** - Main staging dock container
-6. **blockchain/utils/demo.ts** - Demo utility for testing
-7. **blockchain/index.ts** - Module exports
-8. **blockchain/README.md** - Implementation documentation
-9. **blockchain/TESTING.md** - Testing checklist
+### Core Services
+- **SmartContractService** (`src/blockchain/services/SmartContractService.ts`)
+  - SorobanRpc.Server connection setup
+  - `invoke()` helper for contract calls (read-only and state-changing)
+  - Simulation before submission for resource usage estimation
+  - WASM deployment helper for admins
+  - Event parsing from transaction metadata
+  - Comprehensive error handling (out-of-gas, simulation failures, etc.)
 
-### Modified Files
-1. **types.ts** - Added STAGING_DOCK to View enum
-2. **App.tsx** - Added StagingDock import and route
-3. **components/Sidebar.tsx** - Added Staging Dock navigation item
-4. **tailwind.config.js** - Added custom animations (spin, ping, fade-in)
+- **WalletService** (`src/blockchain/services/WalletService.ts`)
+  - Integration with Freighter and Albedo wallets
+  - Non-custodial transaction signing
+  - Auto-detection of available wallets
+  - Network-aware signing
 
-## Features Implemented
+### Type Definitions
+- **soroban.ts** (`src/blockchain/types/soroban.ts`)
+  - ContractInvocationParams
+  - ContractSimulationResult
+  - ContractInvocationResult
+  - WasmDeploymentParams/Result
+  - Error type enums
 
-### ✅ Issue #803.5 - Optimistic Status Visuals
-- Immediate "Dispatched" status display after transaction submission
-- Non-blocking progress animations for all transaction states
-- Background confirmation polling (2-second intervals)
-- Silent status updates when transactions confirm
-- Subtle success notifications (3-second fade-out badge)
+### Configuration
+- **soroban.config.ts** (`src/blockchain/config/soroban.config.ts`)
+  - Network configurations (Testnet, Mainnet, Futurenet)
+  - Default timeout and fee settings
 
-### ✅ Issue #803.6 - Transaction Status Indicators
-- **5 Status Icons**: Pending (Clock), Signing (Loader), Dispatched (Send), Confirmed (CheckCircle), Failed (XCircle)
-- **Animated Progress**: Spinning animations for active states with ping effect
-- **Color-coded Badges**: Yellow (pending), Blue (signing), Teal (dispatched), Green (confirmed), Red (failed)
-- **Estimated Confirmation Time**: Shows ~5s for dispatched transactions
-- **Retry Button**: Appears on failed transactions with click handler
+### Utilities
+- **sorobanHelpers.ts** (`src/blockchain/utils/sorobanHelpers.ts`)
+  - ScVal conversion helpers (toScVal, fromScVal)
+  - Type-specific converters (u64, i64, address, symbol, etc.)
+  - Error parsing utilities
+  - XLM/stroops conversion
+
+### React Integration
+- **useSorobanContract** (`src/blockchain/hooks/useSorobanContract.ts`)
+  - React hook for easy contract interactions
+  - Wallet connection management
+  - Read/write contract methods
+  - Simulation support
+  - Event fetching
+
+### Examples & Documentation
+- **contractUsage.ts** - Comprehensive usage examples
+- **SorobanDemo.tsx** - Interactive demo component
+- **README.md** - Complete API documentation
+- **TESTING.md** - Testing guide and acceptance criteria verification
 
 ## Technical Implementation
 
-### Architecture
-- **Modular Design**: Separate components for status, queue items, and manager
-- **Optimistic Updates**: Transactions immediately show dispatched status
-- **Background Polling**: Auto-activates when dispatched transactions exist
-- **Type Safety**: Full TypeScript implementation with strict types
+### 1. Read-Only Contract Calls
+```typescript
+const result = await sorobanService.invoke(
+  { contractId, method: 'balance', args: [addressToScVal(userAddress)] },
+  sourceAccount,
+  ContractCallType.READ_ONLY
+);
+```
+- No wallet signature required
+- Uses simulation only
+- Returns contract state immediately
 
-### Key Features
-- **Non-blocking UI**: All updates happen asynchronously
-- **Responsive Design**: Works on all screen sizes
-- **Smooth Animations**: CSS animations for professional feel
-- **Demo Mode**: Test utility for adding sample transactions
+### 2. State-Changing Calls
+```typescript
+const result = await sorobanService.invoke(
+  { contractId, method: 'transfer', args: [...] },
+  sourceAccount,
+  ContractCallType.STATE_CHANGING,
+  signTransaction
+);
+```
+- Simulates first to estimate resources
+- Triggers wallet signature popup
+- Submits transaction to network
+- Polls for confirmation
+- Parses events from transaction meta
 
-### Performance
-- Efficient polling (only when needed)
-- Minimal re-renders with React best practices
-- Smooth animations using CSS transforms
-- Optimized for 50+ transactions in queue
+### 3. Resource Estimation
+- Automatic simulation before every state-changing call
+- Calculates CPU instructions and memory usage
+- Estimates minimum resource fee
+- Prepares transaction with proper limits
 
-## Requirements Satisfied
+### 4. Error Handling
+- **OUT_OF_GAS**: Resource limits exceeded
+- **SIMULATION_FAILED**: Pre-flight check failed
+- **TRANSACTION_FAILED**: Submission or execution failed
+- User-friendly error messages for each type
 
-✅ **Requirement 4.4** - Payment Processing
-- Transaction status displayed in real-time
-- Status updates (pending, confirmed, failed)
+### 5. Event Parsing
+- Extracts events from transaction meta XDR
+- Parses event type, topics, and values
+- Returns structured event data
+- Supports historical event queries
 
-✅ **Requirement 20.1** - Blockchain Event Monitoring
-- Background confirmation polling
-- Real-time notifications for blockchain events
+## Acceptance Criteria ✅
+
+- [x] **Successful read-only contract call** - Implemented via `ContractCallType.READ_ONLY`
+- [x] **State-changing call triggers wallet signature** - Integrated with Freighter/Albedo
+- [x] **Correct handling of out-of-gas errors** - Specific error type and user-friendly messages
+- [x] **Event parsing from transaction metadata** - Full XDR parsing implementation
+- [x] **WASM deployment helper** - `deployWasm()` method for admins
 
 ## Testing
 
 ### Manual Testing
-Run in browser console:
-```javascript
-// Add single transaction
-window.demoTransaction()
+1. Install Freighter or Albedo wallet
+2. Configure for Testnet
+3. Run the demo component
+4. Test read-only calls (no signature)
+5. Test state-changing calls (with signature)
+6. Verify error handling
+7. Check event parsing
 
-// Add multiple transactions
-for(let i = 0; i < 5; i++) window.demoTransaction()
+### Automated Testing
+See `src/blockchain/TESTING.md` for comprehensive test plan
+
+## Dependencies Added
+- `@stellar/stellar-sdk` - Official Stellar SDK with Soroban support
+
+## Security Considerations
+- ✅ Private keys never accessed by the service
+- ✅ All transaction signing delegated to wallet providers
+- ✅ Simulation performed before every state-changing call
+- ✅ Resource limits automatically calculated
+- ✅ Network passphrase validation
+
+## Usage Example
+
+```typescript
+import { useSorobanContract } from './blockchain/hooks/useSorobanContract';
+
+function MyComponent() {
+  const { 
+    connectWallet, 
+    readContract, 
+    writeContract 
+  } = useSorobanContract('CONTRACT_ID', 'TESTNET');
+
+  // Connect wallet
+  await connectWallet();
+
+  // Read contract state
+  const balance = await readContract('balance', [addressToScVal(address)]);
+
+  // Execute transaction
+  const result = await writeContract('transfer', [
+    addressToScVal(from),
+    addressToScVal(to),
+    u64ToScVal(amount)
+  ]);
+}
 ```
 
-### Expected Behavior
-1. Transaction appears with "Pending" status
-2. After 500ms → "Dispatched" status with spinning icon
-3. Background polling checks every 2 seconds
-4. Random confirmation within 10 seconds
-5. "Success!" badge appears for 3 seconds
-6. Status updates to "Confirmed" with green checkmark
+## Next Steps
+1. Integrate with SocialFlow dashboard UI
+2. Create contract-specific wrappers for engagement campaigns
+3. Implement real-time event listeners
+4. Add transaction history tracking
+5. Build admin panel for contract deployment
 
-### Test Coverage
-- ✅ Single transaction flow
-- ✅ Multiple concurrent transactions
-- ✅ Queue counter accuracy
-- ✅ Retry functionality
-- ✅ Animation performance
-- ✅ Responsive layout
-
-## Screenshots
-
-### Transaction States
-- Pending: Yellow clock icon with subtle background
-- Dispatched: Teal send icon with spin animation + ping effect
-- Confirmed: Green checkmark with success badge
-- Failed: Red X with retry button
-
-### Queue Overview
-- Header with pending/confirmed counters
-- Scrollable transaction list
-- Real-time status updates
-- Timestamp display
-
-## Integration Points
-
-Ready to integrate with:
-- Stellar Service (transaction submission)
-- Wallet Service (transaction signing)
-- Event Monitor Service (confirmation polling)
-- Horizon API (real blockchain data)
-
-## Future Enhancements
-
-1. Connect to actual Stellar network
-2. Implement IndexedDB persistence
-3. Add transaction filtering/search
-4. Export transaction logs
-5. Desktop notifications via Electron
-6. Transaction details modal
-7. Batch operations
-
-## Breaking Changes
-None - This is a new feature addition.
-
-## Dependencies
-No new dependencies added. Uses existing:
-- React 18.2.0
-- lucide-react 0.300.0
-- Tailwind CSS 3.4.0
-
-## Browser Compatibility
-- Chrome/Edge: ✅
-- Firefox: ✅
-- Safari: ✅
-- Electron: ✅
-
-## Deployment Notes
-1. Run `npm install` (no new deps, but ensures consistency)
-2. Run `npm run build` to verify TypeScript compilation
-3. Run `npm run electron:dev` to test in Electron environment
-
-## Checklist
-- [x] Code follows project style guidelines
-- [x] TypeScript strict mode compliance
-- [x] Responsive design implemented
-- [x] Animations are smooth and non-blocking
-- [x] Documentation added (README.md, TESTING.md)
-- [x] Manual testing completed
-- [x] No console errors
-- [x] Requirements 4.4 and 20.1 satisfied
-
-## Related Issues
-- Issue #803.2 - Staging Dock Transaction Queue Management/2
-- Sub-issue #803.5 - Optimistic Status Visuals
-- Sub-issue #803.6 - Transaction Status Indicators
+## Files Changed
+- `package.json` - Added @stellar/stellar-sdk dependency
+- `src/blockchain/` - New directory with complete implementation
+  - services/ (SmartContractService, WalletService)
+  - types/ (TypeScript interfaces)
+  - config/ (Network configurations)
+  - utils/ (Helper functions)
+  - hooks/ (React integration)
+  - examples/ (Usage examples)
+  - components/ (Demo component)
+  - README.md (Documentation)
+  - TESTING.md (Test plan)
+  - index.ts (Centralized exports)
 
 ## Branch
-`features/issue-803.2-Staging-Dock-Transaction-Queue-Management-2`
+`features/issue-201-Soroban-Contract-Bridge`
 
 ## Target Branch
 `develop`
+
+## Related Issues
+Closes #201
+
+---
+
+**Ready for Review** ✅
+
+All acceptance criteria met. Comprehensive documentation and examples included. No TypeScript errors. Ready to merge into develop branch.

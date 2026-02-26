@@ -1,101 +1,186 @@
-# Transaction Queue Management - Issue #803.2
+# Soroban Contract Bridge - Issue #201.3
 
-## Overview
-Implementation of optimistic status visuals and transaction status indicators for the Staging Dock transaction queue management system.
+This implementation provides extended smart contract functionality for the SocialFlow platform, including contract state queries and comprehensive testing.
 
 ## Features Implemented
 
-### 803.5 - Optimistic Status Visuals
-- ✅ **Dispatched Status**: Transactions immediately show "Dispatched" status after submission
-- ✅ **Non-blocking Animations**: Smooth animations for pending/signing/dispatched states
-- ✅ **Background Polling**: Automatic confirmation polling every 2 seconds for dispatched transactions
-- ✅ **Silent Updates**: Status updates from dispatched → confirmed happen in background
-- ✅ **Success Notifications**: Subtle 3-second success badge appears on confirmation
+### 201.7 Contract State Queries
+- ✅ `getContractState(contractId)` method for retrieving contract state
+- ✅ Query contract storage entries via RPC
+- ✅ Parse and format state data into usable objects
+- ✅ State caching with configurable TTL (default: 60 seconds)
+- ✅ State change notifications with listener pattern
+- ✅ Cache management (clear specific or all cached states)
 
-### 803.6 - Transaction Status Indicators
-- ✅ **Status Icons**: 
-  - Pending: Clock icon (yellow)
-  - Signing: Loader icon with spin animation (blue)
-  - Dispatched: Send icon with spin animation (teal)
-  - Confirmed: CheckCircle icon (green)
-  - Failed: XCircle icon (red)
-- ✅ **Animated Progress**: Spinning animations for active states with ping effect
-- ✅ **Color-coded Badges**: Each status has distinct color scheme with background
-- ✅ **Estimated Time**: Shows ~5s confirmation time for dispatched transactions
-- ✅ **Retry Button**: Failed transactions display retry button
+### 201.8 Unit Tests for SmartContractService
+- ✅ RPC connection and health check tests
+- ✅ Contract invocation tests (read and write operations)
+- ✅ Simulation and fee estimation tests
+- ✅ WASM deployment tests
+- ✅ Event parsing tests
+- ✅ Error handling tests (out-of-gas, invalid params, unknown errors)
+- ✅ Contract state query tests with caching and notifications
 
 ## File Structure
 
 ```
 blockchain/
-├── components/
-│   ├── StagingDock.tsx                    # Main staging dock container
-│   ├── TransactionQueueManager.tsx        # Queue manager with polling
-│   ├── TransactionQueueItem.tsx           # Individual transaction display
-│   └── TransactionStatusIndicator.tsx     # Status icons and badges
+├── services/
+│   └── SmartContractService.ts    # Main service implementation
 ├── types/
-│   └── transaction.ts                     # Transaction type definitions
-├── utils/
-│   └── demo.ts                            # Demo utility for testing
-└── index.ts                               # Exports
+│   └── contract.ts                # TypeScript interfaces
+└── __tests__/
+    └── SmartContractService.test.ts # Comprehensive test suite
 ```
 
 ## Usage
 
-### Navigation
-Access the Staging Dock via the sidebar navigation item "Staging Dock" (inventory icon).
+### Initialize Service
 
-### Testing Transactions
-Open browser console and run:
-```javascript
-window.demoTransaction()
+```typescript
+import { SmartContractService } from './blockchain/services/SmartContractService';
+
+const service = new SmartContractService('https://soroban-testnet.stellar.org');
 ```
 
-This will add a random test transaction to the queue.
+### Check RPC Health
 
-### Transaction Flow
-1. Transaction added → Status: **Pending**
-2. After 500ms → Status: **Dispatched** (optimistic update)
-3. Background polling checks every 2s
-4. On confirmation → Status: **Confirmed** (silent update + success badge)
-5. If failed → Status: **Failed** (shows retry button)
+```typescript
+const isHealthy = await service.checkHealth();
+```
 
-## Technical Details
+### Query Contract State
 
-### Optimistic Updates
-- Transactions immediately transition to "dispatched" after 500ms
-- No blocking UI - all updates happen asynchronously
-- Background polling only activates when dispatched transactions exist
+```typescript
+const state = await service.getContractState(contractId);
+console.log(state); // { balance: 1000, owner: 'GABC...' }
+```
 
-### Animations
-- **Spin**: 1s linear infinite for signing/dispatched icons
-- **Ping**: 1s cubic-bezier for status badge pulse effect
-- **Fade-in**: 0.3s ease-in-out for success notifications
-- **Pulse**: 2s for pending indicator dots
+### Listen to State Changes
 
-### Status Colors
-- Pending: Yellow (#EAB308)
-- Signing: Blue (#3B82F6)
-- Dispatched: Teal (#14B8A6)
-- Confirmed: Green (#22C55E)
-- Failed: Red (#EF4444)
+```typescript
+const unsubscribe = service.onStateChange(contractId, (newState) => {
+  console.log('State updated:', newState);
+});
 
-## Requirements Satisfied
+// Later: unsubscribe()
+```
 
-✅ **Requirement 4.4**: Payment Processing - Transaction status display in real-time
-✅ **Requirement 20.1**: Blockchain Event Monitoring - Real-time notifications for blockchain events
+### Invoke Contract
 
-## Integration Points
+```typescript
+// Write operation
+const result = await service.invokeContract({
+  contractId: 'C123...',
+  method: 'transfer',
+  params: ['sender', 'recipient', 1000]
+}, false);
 
-The transaction queue is designed to integrate with:
-- Stellar Service (transaction submission)
-- Wallet Service (transaction signing)
-- Event Monitor Service (confirmation polling)
+// Read operation
+const balance = await service.invokeContract({
+  contractId: 'C123...',
+  method: 'getBalance',
+  params: ['address']
+}, true);
+```
 
-## Future Enhancements
+### Simulate Transaction
 
-- Connect to actual Stellar network for real transaction submission
-- Implement transaction history persistence
-- Add transaction filtering and search
-- Export transaction logs
-- Desktop notifications for confirmations
+```typescript
+const simulation = await service.simulateTransaction({
+  contractId: 'C123...',
+  method: 'mint',
+  params: ['recipient', 100]
+});
+
+console.log('Estimated fee:', simulation.estimatedFee);
+console.log('Events:', simulation.events);
+```
+
+### Deploy WASM
+
+```typescript
+const wasmBuffer = Buffer.from(wasmCode);
+const wasmId = await service.deployWasm({
+  wasmBuffer,
+  salt: 'unique-salt'
+});
+```
+
+## Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run with coverage
+npm test -- --coverage
+```
+
+## Test Coverage
+
+The test suite covers:
+- ✅ RPC connection and health checks
+- ✅ Contract invocation (read/write)
+- ✅ Transaction simulation and fee estimation
+- ✅ WASM deployment
+- ✅ Event parsing
+- ✅ Error handling (out-of-gas, invalid params)
+- ✅ Contract state queries
+- ✅ State caching with TTL
+- ✅ State change notifications
+- ✅ Cache management
+
+Target coverage: 80% (branches, functions, lines, statements)
+
+## Error Handling
+
+The service provides user-friendly error messages:
+- `Transaction out of gas` - Insufficient gas for execution
+- `Invalid parameters` - Incorrect method parameters
+- Generic error messages for other failures
+
+## Caching Strategy
+
+- Default TTL: 60 seconds
+- Cache is automatically refreshed after TTL expires
+- Manual cache clearing available per contract or globally
+- Reduces RPC calls and improves performance
+
+## State Change Notifications
+
+Subscribe to contract state changes:
+```typescript
+const unsubscribe = service.onStateChange(contractId, (state) => {
+  // Handle state update
+});
+```
+
+Notifications are triggered when:
+- State is fetched from RPC (not from cache)
+- State data has changed
+
+## Dependencies
+
+- TypeScript 5.3+
+- Jest 29.5+ (testing)
+- ts-jest (TypeScript support for Jest)
+
+## Next Steps
+
+To integrate with the UI:
+1. Create React hooks in `blockchain/hooks/useSmartContract.ts`
+2. Add state management in Redux/Context
+3. Build UI components for contract interaction
+4. Implement real-time state monitoring
+
+## Contributing
+
+When adding new features:
+1. Update TypeScript interfaces in `blockchain/types/`
+2. Implement functionality in service
+3. Add comprehensive tests
+4. Update this README
