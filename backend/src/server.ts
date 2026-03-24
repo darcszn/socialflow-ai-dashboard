@@ -1,10 +1,8 @@
-import dotenv from 'dotenv';
 import app from './app';
+import { getBackendPort } from './config/runtime';
 import { startWorkerMonitor, stopWorkerMonitor } from './monitoring/workerMonitorInstance';
 
-dotenv.config();
-
-const PORT = process.env.BACKEND_PORT || 3001;
+const PORT = getBackendPort();
 
 const bootstrap = async (): Promise<void> => {
   try {
