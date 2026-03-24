@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "husky install",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "build": "tsc",
+    "start:traced": "node -r ./dist/tracing.js dist/index.js"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -30,7 +32,19 @@
   },
   "homepage": "https://github.com/obajecollinsmicheal-cmd/socialflow-ai-dashboard#readme",
   "devDependencies": {
+    "@types/node": "^25.5.0",
     "husky": "^8.0.0",
-    "lint-staged": "^16.4.0"
+    "lint-staged": "^16.4.0",
+    "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.71.0",
+    "@opentelemetry/exporter-jaeger": "^2.6.0",
+    "@opentelemetry/exporter-otlp-http": "^0.26.0",
+    "@opentelemetry/resources": "^2.6.0",
+    "@opentelemetry/sdk-node": "^0.213.0",
+    "@opentelemetry/sdk-trace-base": "^2.6.0",
+    "@opentelemetry/semantic-conventions": "^1.40.0"
   }
 }
