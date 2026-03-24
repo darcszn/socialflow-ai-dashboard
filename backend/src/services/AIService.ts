@@ -1,5 +1,8 @@
 import { GoogleGenerativeAI } from '@google/genai';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { circuitBreakerService } from './CircuitBreakerService';
+
+const tracer = trace.getTracer('socialflow-ai');
 
 /**
  * AIService - Wrapper for Google Gemini AI with circuit breaker protection
@@ -39,7 +42,7 @@ class AIService {
   }
 
   /**
-   * Generate content with circuit breaker protection
+   * Generate content with circuit breaker protection and distributed tracing
    */
   public async generateContent(
     prompt: string,
@@ -49,28 +52,51 @@ class AIService {
       throw new Error('Gemini AI not initialized. Please configure API_KEY.');
     }
 
-    return circuitBreakerService.execute(
-      'ai',
-      async () => {
-        const result = await this.model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        
-        if (!text) {
-          throw new Error('Empty response from Gemini AI');
-        }
-        
-        return text;
+    const span = tracer.startSpan('ai.generateContent', {
+      attributes: {
+        'ai.provider': 'gemini',
+        'ai.model': 'gemini-pro',
+        'ai.prompt_length': prompt.length,
       },
-      async () => {
-        // Fallback strategy
-        if (fallbackResponse) {
-          console.warn('AI circuit breaker open, using fallback response');
-          return fallbackResponse;
+    });
+
+    try {
+      const result = await circuitBreakerService.execute(
+        'ai',
+        async () => {
+          const res = await this.model.generateContent(prompt);
+          const response = await res.response;
+          const text = response.text();
+
+          if (!text) {
+            throw new Error('Empty response from Gemini AI');
+          }
+
+          span.setAttribute('ai.response_length', text.length);
+          return text;
+        },
+        async () => {
+          if (fallbackResponse) {
+            console.warn('AI circuit breaker open, using fallback response');
+            span.setAttribute('ai.fallback', true);
+            return fallbackResponse;
+          }
+          throw new Error('AI service temporarily unavailable. Please try again later.');
         }
-        throw new Error('AI service temporarily unavailable. Please try again later.');
-      }
-    );
+      );
+
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (err) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      span.recordException(err as Error);
+      throw err;
+    } finally {
+      span.end();
+    }
   }
 
   /**
@@ -120,6 +146,13 @@ Format output as a simple list of 3 strings separated by newlines. No numbering.
     topics: string[];
     keywords: string[];
   }> {
+    const span = tracer.startSpan('ai.analyzeContent', {
+      attributes: {
+        'ai.provider': 'gemini',
+        'ai.content_length': content.length,
+      },
+    });
+
     const prompt = `Analyze this social media content and provide:
 1. Sentiment (positive/neutral/negative)
 2. Main topics (2-3 topics)
@@ -131,14 +164,20 @@ Format as JSON: {"sentiment": "...", "topics": [...], "keywords": [...]}`;
 
     try {
       const response = await this.generateContent(prompt);
-      return JSON.parse(response);
+      const parsed = JSON.parse(response);
+      span.setAttribute('ai.sentiment', parsed.sentiment ?? 'unknown');
+      span.setStatus({ code: SpanStatusCode.OK });
+      return parsed;
     } catch (error) {
-      // Fallback analysis
+      span.setAttribute('ai.fallback', true);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: 'analyzeContent fallback' });
       return {
         sentiment: 'neutral',
         topics: ['general'],
         keywords: content.split(' ').slice(0, 5),
       };
+    } finally {
+      span.end();
     }
   }
 
