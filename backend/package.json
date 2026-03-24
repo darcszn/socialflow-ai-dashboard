@@ -10,6 +10,7 @@
     "cli:dev": "ts-node-dev --respawn --transpile-only src/cli/index.ts"
   },
   "dependencies": {
+    "@google/genai": "^1.46.0",
     "bullmq": "^5.58.0",
     "commander": "^14.0.3",
     "cors": "^2.8.5",

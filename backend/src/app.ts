@@ -1,7 +1,9 @@
+import './config/runtime';
 import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import aiRoutes from './routes/ai';
 import healthRoutes from './routes/health';
 
 const app: Express = express();
@@ -13,6 +15,7 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 // Routes
+app.use('/ai', aiRoutes);
 app.use('/api/health', healthRoutes);
 
 export default app;
