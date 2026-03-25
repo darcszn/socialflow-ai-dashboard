@@ -1,4 +1,5 @@
 // Jobs exports
+export { processCohortJob } from "./cohortJob";
 export {
   initializeWorkers,
   workerConfigs,
@@ -11,14 +12,14 @@ export {
   processSyncContractJob,
   processDeployContractJob,
   processNotificationJob,
-} from './workers';
+} from "./workers";
 export {
   processEmailJob as emailJobProcessor,
   createEmailWorker,
   processBulkEmailJob,
-} from './emailJob';
+} from "./emailJob";
 export {
   processPayoutJob as payoutJobProcessor,
   createPayoutWorker,
   processBatchPayoutJob,
-} from './payoutJob';
+} from "./payoutJob";
