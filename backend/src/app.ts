@@ -6,6 +6,7 @@ import { requestIdMiddleware } from './middleware/requestId';
 import { errorHandler, notFoundHandler } from './middleware/error';
 import webhookRoutes from './routes/webhooks';
 import realtimeRoutes from './routes/realtime';
+import ttsRoutes from './routes/tts';
 
 const app: Application = express();
 
@@ -33,6 +34,7 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/realtime', realtimeRoutes);
+app.use('/api/tts', ttsRoutes);
 
 // 404 handler - must be after all routes
 app.use(notFoundHandler);
