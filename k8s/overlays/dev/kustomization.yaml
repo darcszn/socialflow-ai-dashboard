@@ -35,12 +35,14 @@ patches:
       spec:
         minReplicas: 1
         maxReplicas: 3
-  # Dev hostname
+  # Dev hostname + TLS via staging issuer (avoids Let's Encrypt rate limits)
   - patch: |-
       apiVersion: networking.k8s.io/v1
       kind: Ingress
       metadata:
         name: socialflow-backend
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt-staging
       spec:
         rules:
           - host: api.dev.socialflow.example.com
@@ -53,6 +55,10 @@ patches:
                       name: socialflow-backend
                       port:
                         name: http
+        tls:
+          - hosts:
+              - api.dev.socialflow.example.com
+            secretName: socialflow-dev-tls
 
 configMapGenerator:
   - name: socialflow-config
