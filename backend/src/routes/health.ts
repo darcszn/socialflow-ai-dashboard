@@ -9,8 +9,17 @@ import {
 const router = Router();
 
 /**
- * GET /api/health/status
- * Get current system health status
+ * @openapi
+ * /health/status:
+ *   get:
+ *     tags: [Health]
+ *     summary: Get current system health status
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: System health status
+ *       500:
+ *         description: Health check failed
  */
 router.get('/status', async (req, res) => {
   try {
@@ -25,8 +34,17 @@ router.get('/status', async (req, res) => {
 });
 
 /**
- * GET /api/health/metrics
- * Get detailed health metrics for all services
+ * @openapi
+ * /health/metrics:
+ *   get:
+ *     tags: [Health]
+ *     summary: Get detailed health metrics for all services
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Health metrics
+ *       500:
+ *         description: Failed to retrieve metrics
  */
 router.get('/metrics', (req, res) => {
   try {
@@ -41,8 +59,24 @@ router.get('/metrics', (req, res) => {
 });
 
 /**
- * GET /api/health/metrics/:service
- * Get health metrics for a specific service
+ * @openapi
+ * /health/metrics/{service}:
+ *   get:
+ *     tags: [Health]
+ *     summary: Get health metrics for a specific service
+ *     security: []
+ *     parameters:
+ *       - in: path
+ *         name: service
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [database, redis, s3, twitter, youtube, facebook]
+ *     responses:
+ *       200:
+ *         description: Service health metrics
+ *       404:
+ *         description: Service not found
  */
 router.get('/metrics/:service', (req, res) => {
   try {
@@ -60,8 +94,15 @@ router.get('/metrics/:service', (req, res) => {
 });
 
 /**
- * GET /api/health/config
- * Get alert configuration
+ * @openapi
+ * /health/config:
+ *   get:
+ *     tags: [Health]
+ *     summary: Get alert configuration for all services
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Alert configuration map
  */
 router.get('/config', (req, res) => {
   try {
@@ -79,8 +120,30 @@ router.get('/config', (req, res) => {
 });
 
 /**
- * PUT /api/health/config/:service
- * Update alert configuration for a service
+ * @openapi
+ * /health/config/{service}:
+ *   put:
+ *     tags: [Health]
+ *     summary: Update alert configuration for a service
+ *     parameters:
+ *       - in: path
+ *         name: service
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [database, redis, s3, twitter, youtube, facebook]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: Alert configuration object
+ *     responses:
+ *       200:
+ *         description: Configuration updated
+ *       500:
+ *         description: Failed to update config
  */
 router.put('/config/:service', (req, res) => {
   try {
