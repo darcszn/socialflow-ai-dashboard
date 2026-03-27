@@ -49,4 +49,21 @@
       "testTimeout": 30000
     }
   ]
+  "testMatch": [
+    "**/__tests__/**/*.test.ts",
+    "**/*.test.ts"
+  ],
+  "collectCoverageFrom": [
+    "src/**/*.ts",
+    "!src/**/*.d.ts",
+    "!src/server.ts",
+    "!src/tracing.ts"
+  ],
+  "coverageReporters": ["text", "lcov", "html"],
+  "coverageDirectory": "coverage",
+  "coverageThreshold": {
+    "global": {
+      "lines": 50
+    }
+  }
 }
