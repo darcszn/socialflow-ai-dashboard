@@ -17,6 +17,52 @@
 
 ---
 
+## ⚠️ Moderation Behavior
+
+> **This section documents the absence of moderation, not the presence of it. Read before deploying.**
+
+### Current State — ❌ No Moderation Exists
+
+There is **no content moderation layer** in this codebase. No moderation modes, no middleware, no content policy enforcement, and no provider integrations (e.g. OpenAI Moderation API, Google SafeSearch, Azure Content Safety) have been implemented.
+
+This means:
+
+- All user-supplied input (captions, topics, message replies) is passed directly to the Gemini API without any pre-screening.
+- All AI-generated output is returned directly to the UI without any post-processing or filtering.
+- There is no concept of a moderation mode (strict, permissive, off) — the system has no configuration surface for moderation at all.
+- Missing or invalid API keys affect only the AI generation features (`generate_caption`, `generate_reply`). There is no separate moderation provider key because there is no moderation provider.
+
+### Fail-Open vs Fail-Closed
+
+Because no moderation layer exists, the system is **permanently fail-open**:
+
+| Scenario | Behavior | Operational Implication |
+|---|---|---|
+| `API_KEY` valid | Content generated and returned unmoderated | Policy violations in AI output are possible |
+| `API_KEY` missing or invalid | AI generation fails; UI shows an error string | No content produced, so no moderation risk — but service is degraded |
+| Moderation provider key missing | N/A — no moderation provider is configured | No change in behavior; moderation was never active |
+
+**Fail-open** means content passes through without filtering when a moderation check cannot be performed. This is the current permanent state — not a fallback, but the only state.
+
+**Fail-closed** (blocking content when moderation is unavailable) is not implemented and would require building a moderation layer first.
+
+### Operational Implications
+
+- Do not deploy SocialFlow in any context where content policy enforcement is required (e.g. platforms accessible to minors, regulated industries) until a moderation layer is implemented.
+- The Gemini API applies Google's own usage policies and may refuse certain requests, but this is not a substitute for application-level moderation.
+
+### Incident Response
+
+Because no moderation system exists, there is no moderation outage to detect or recover from. If you are building toward a moderated deployment:
+
+1. **Detecting a future moderation outage** — instrument your moderation middleware to emit a structured log event on every check failure. Alert on error rate exceeding a threshold over a rolling window.
+2. **When moderation is degraded** — decide at design time whether your system should fail-open (allow content, log for review) or fail-closed (block content, return error to user). Document this in your deployment runbook.
+3. **Re-enabling after key rotation or provider recovery** — rotate the moderation provider key in your secrets manager, redeploy or hot-reload the service, then verify with a known-bad test payload that moderation is active before re-opening traffic.
+
+> These steps are forward-looking guidance for when moderation is eventually implemented. None apply to the current codebase.
+
+---
+
 ## 💎 The SocialFlow Paradigm
 
 SocialFlow is a state-of-the-art **social media management and promoting application** designed to restore sovereignty to digital creators. By converging Large Language Models (LLMs) with Decentralized Ledger Technology (DLT), we provide a suite of management, orchestration, and economic primitives that are transparent, non-custodial, and hyper-automated.
