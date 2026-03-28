@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [master]
+    branches: [main]
 
 jobs:
   security:
@@ -55,6 +55,21 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate Jest config and project discovery
+        run: |
+          node -e "require('./jest.config.js')" && echo "jest.config.js: parse OK"
+          npx jest --showConfig 2>/dev/null | node -e "
+            const chunks = []; process.stdin.on('data', c => chunks.push(c));
+            process.stdin.on('end', () => {
+              const cfg = JSON.parse(chunks.join(''));
+              const projects = cfg.configs.map(c => c.displayName?.name ?? c.displayName);
+              const expected = ['unit', 'e2e', 'db', 'mocks'];
+              const missing = expected.filter(p => !projects.includes(p));
+              if (missing.length) { console.error('Missing projects:', missing); process.exit(1); }
+              console.log('Projects discovered:', projects.join(', '));
+            });
+          "
 
       - name: Generate Prisma client
         run: npx prisma generate
