@@ -15,23 +15,23 @@ npm run dev
 
 ### Required variables
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string — `postgresql://USER:PASS@HOST:PORT/DB` |
-| `JWT_SECRET` | Secret used to sign access tokens (min 32 chars recommended) |
-| `JWT_REFRESH_SECRET` | Secret used to sign refresh tokens (min 32 chars recommended) |
-| `TWITTER_API_KEY` | Twitter / X API key |
-| `TWITTER_API_SECRET` | Twitter / X API secret |
+| Variable             | Description                                                          |
+| -------------------- | -------------------------------------------------------------------- |
+| `DATABASE_URL`       | PostgreSQL connection string — `postgresql://USER:PASS@HOST:PORT/DB` |
+| `JWT_SECRET`         | Secret used to sign access tokens (min 32 chars recommended)         |
+| `JWT_REFRESH_SECRET` | Secret used to sign refresh tokens (min 32 chars recommended)        |
+| `TWITTER_API_KEY`    | Twitter / X API key                                                  |
+| `TWITTER_API_SECRET` | Twitter / X API secret                                               |
 
 ### Connection pool
 
 Pool parameters are injected automatically into `DATABASE_URL` at startup based on `NODE_ENV`. Override with env vars if needed.
 
-| `NODE_ENV` | `connection_limit` | `pool_timeout` |
-|---|---|---|
-| `development` | 5 | 10s |
-| `test` | 2 | 10s |
-| `production` | 10 | 20s |
+| `NODE_ENV`    | `connection_limit` | `pool_timeout` |
+| ------------- | ------------------ | -------------- |
+| `development` | 5                  | 10s            |
+| `test`        | 2                  | 10s            |
+| `production`  | 10                 | 20s            |
 
 Override defaults:
 
@@ -44,42 +44,42 @@ DB_POOL_TIMEOUT=30       # seconds to wait for a free connection before erroring
 
 ### Optional variables with defaults
 
-| Variable | Default | Description |
-|---|---|---|
-| `NODE_ENV` | `development` | `development` \| `production` \| `test` |
-| `BACKEND_PORT` | `3001` | HTTP server port |
-| `DB_CONNECTION_LIMIT` | see pool table | Max open connections per Prisma process |
-| `DB_POOL_TIMEOUT` | see pool table | Seconds to wait for a free connection |
-| `JWT_EXPIRES_IN` | `15m` | Access token TTL |
-| `JWT_REFRESH_EXPIRES_IN` | `7d` | Refresh token TTL |
-| `REDIS_HOST` | `127.0.0.1` | Redis host |
-| `REDIS_PORT` | `6379` | Redis port |
-| `REDIS_DB` | `0` | Redis database index |
-| `REDIS_PASSWORD` | — | Redis password (optional) |
-| `LOG_LEVEL` | `info` | `error` \| `warn` \| `info` \| `http` \| `verbose` \| `debug` \| `silly` |
-| `OTEL_SERVICE_NAME` | `socialflow-backend` | OpenTelemetry service name |
-| `OTEL_EXPORTER` | `jaeger` | `jaeger` \| `honeycomb` \| `otlp` |
-| `JAEGER_ENDPOINT` | `http://localhost:14268/api/traces` | Jaeger collector URL |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318/v1/traces` | OTLP endpoint |
-| `OTEL_DEBUG` | `false` | Enable verbose OTel diagnostics |
-| `DATA_RETENTION_MODE` | `archive` | `archive` \| `delete` |
-| `DATA_PRUNING_CRON` | `0 2 * * *` | Cron schedule for data pruning |
-| `DATA_RETENTION_LOG_DAYS` | `30` | Log retention in days |
-| `DATA_RETENTION_ANALYTICS_DAYS` | `90` | Analytics retention in days |
+| Variable                        | Default                             | Description                                                              |
+| ------------------------------- | ----------------------------------- | ------------------------------------------------------------------------ |
+| `NODE_ENV`                      | `development`                       | `development` \| `production` \| `test`                                  |
+| `BACKEND_PORT`                  | `3001`                              | HTTP server port                                                         |
+| `DB_CONNECTION_LIMIT`           | see pool table                      | Max open connections per Prisma process                                  |
+| `DB_POOL_TIMEOUT`               | see pool table                      | Seconds to wait for a free connection                                    |
+| `JWT_EXPIRES_IN`                | `15m`                               | Access token TTL                                                         |
+| `JWT_REFRESH_EXPIRES_IN`        | `7d`                                | Refresh token TTL                                                        |
+| `REDIS_HOST`                    | `127.0.0.1`                         | Redis host                                                               |
+| `REDIS_PORT`                    | `6379`                              | Redis port                                                               |
+| `REDIS_DB`                      | `0`                                 | Redis database index                                                     |
+| `REDIS_PASSWORD`                | —                                   | Redis password (optional)                                                |
+| `LOG_LEVEL`                     | `info`                              | `error` \| `warn` \| `info` \| `http` \| `verbose` \| `debug` \| `silly` |
+| `OTEL_SERVICE_NAME`             | `socialflow-backend`                | OpenTelemetry service name                                               |
+| `OTEL_EXPORTER`                 | `jaeger`                            | `jaeger` \| `honeycomb` \| `otlp`                                        |
+| `JAEGER_ENDPOINT`               | `http://localhost:14268/api/traces` | Jaeger collector URL                                                     |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`   | `http://localhost:4318/v1/traces`   | OTLP endpoint                                                            |
+| `OTEL_DEBUG`                    | `false`                             | Enable verbose OTel diagnostics                                          |
+| `DATA_RETENTION_MODE`           | `archive`                           | `archive` \| `delete`                                                    |
+| `DATA_PRUNING_CRON`             | `0 2 * * *`                         | Cron schedule for data pruning                                           |
+| `DATA_RETENTION_LOG_DAYS`       | `30`                                | Log retention in days                                                    |
+| `DATA_RETENTION_ANALYTICS_DAYS` | `90`                                | Analytics retention in days                                              |
 
 ### Social / third-party integrations (all optional)
 
-| Variable | Description |
-|---|---|
-| `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` | Facebook Graph API credentials |
-| `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | Google OAuth credentials for YouTube |
-| `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` | TikTok API credentials |
-| `DEEPL_API_KEY` | DeepL translation API key |
-| `GOOGLE_TRANSLATE_API_KEY` | Google Translate API key |
-| `ELEVENLABS_API_KEY` | ElevenLabs TTS API key |
-| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe billing credentials |
-| `SLACK_WEBHOOK_URL` | Slack webhook for health alerts |
-| `ELASTICSEARCH_URL` | Elasticsearch endpoint for log shipping |
+| Variable                                      | Description                             |
+| --------------------------------------------- | --------------------------------------- |
+| `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET`     | Facebook Graph API credentials          |
+| `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | Google OAuth credentials for YouTube    |
+| `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET`  | TikTok API credentials                  |
+| `DEEPL_API_KEY`                               | DeepL translation API key               |
+| `GOOGLE_TRANSLATE_API_KEY`                    | Google Translate API key                |
+| `ELEVENLABS_API_KEY`                          | ElevenLabs TTS API key                  |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe billing credentials              |
+| `SLACK_WEBHOOK_URL`                           | Slack webhook for health alerts         |
+| `ELASTICSEARCH_URL`                           | Elasticsearch endpoint for log shipping |
 
 ### Validation error example
 
@@ -98,20 +98,20 @@ Tracing is initialised in `src/tracing.ts` (frontend/shared) and `backend/src/tr
 
 Select the exporter with `OTEL_EXPORTER`:
 
-| Value | Destination | Required extra vars |
-|---|---|---|
-| `jaeger` (default) | Jaeger HTTP collector | `JAEGER_ENDPOINT` |
-| `honeycomb` | Honeycomb OTLP endpoint | `HONEYCOMB_API_KEY`, `HONEYCOMB_DATASET` |
-| `otlp` | Any OTLP/HTTP backend (Grafana Tempo, Lightstep, …) | `OTEL_EXPORTER_OTLP_ENDPOINT` |
+| Value              | Destination                                         | Required extra vars                      |
+| ------------------ | --------------------------------------------------- | ---------------------------------------- |
+| `jaeger` (default) | Jaeger HTTP collector                               | `JAEGER_ENDPOINT`                        |
+| `honeycomb`        | Honeycomb OTLP endpoint                             | `HONEYCOMB_API_KEY`, `HONEYCOMB_DATASET` |
+| `otlp`             | Any OTLP/HTTP backend (Grafana Tempo, Lightstep, …) | `OTEL_EXPORTER_OTLP_ENDPOINT`            |
 
 ### Span processor
 
 The backend selects the processor based on `OTEL_DEBUG`:
 
-| `OTEL_DEBUG` | Processor | Behaviour |
-|---|---|---|
-| `false` (default) | `BatchSpanProcessor` | Buffers spans; exports every 5 s or when the queue (512) is full. Low overhead — use in production. |
-| `true` | `SimpleSpanProcessor` | Exports each span synchronously as it ends. High overhead — use only for local debugging. |
+| `OTEL_DEBUG`      | Processor             | Behaviour                                                                                           |
+| ----------------- | --------------------- | --------------------------------------------------------------------------------------------------- |
+| `false` (default) | `BatchSpanProcessor`  | Buffers spans; exports every 5 s or when the queue (512) is full. Low overhead — use in production. |
+| `true`            | `SimpleSpanProcessor` | Exports each span synchronously as it ends. High overhead — use only for local debugging.           |
 
 The frontend/shared `src/tracing.ts` always uses `BatchSpanProcessor`.
 
@@ -171,11 +171,11 @@ pg_dump --version   # e.g. pg_dump (PostgreSQL) 16.x
 
 **Environment variables:**
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `DATABASE_URL` | yes | — | PostgreSQL connection string |
-| `S3_BACKUP_BUCKET` | yes | — | S3 bucket name for backup storage |
-| `AWS_REGION` | no | `us-east-1` | AWS region of the bucket |
+| Variable           | Required | Default     | Description                       |
+| ------------------ | -------- | ----------- | --------------------------------- |
+| `DATABASE_URL`     | yes      | —           | PostgreSQL connection string      |
+| `S3_BACKUP_BUCKET` | yes      | —           | S3 bucket name for backup storage |
+| `AWS_REGION`       | no       | `us-east-1` | AWS region of the bucket          |
 
 AWS credentials are resolved by the SDK in the standard order: env vars (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`), `~/.aws/credentials`, or an attached IAM role (recommended in production).
 
@@ -184,15 +184,8 @@ AWS credentials are resolved by the SDK in the standard order: env vars (`AWS_AC
 ```json
 {
   "Effect": "Allow",
-  "Action": [
-    "s3:PutObject",
-    "s3:ListBucket",
-    "s3:DeleteObject"
-  ],
-  "Resource": [
-    "arn:aws:s3:::YOUR_BUCKET",
-    "arn:aws:s3:::YOUR_BUCKET/backups/*"
-  ]
+  "Action": ["s3:PutObject", "s3:ListBucket", "s3:DeleteObject"],
+  "Resource": ["arn:aws:s3:::YOUR_BUCKET", "arn:aws:s3:::YOUR_BUCKET/backups/*"]
 }
 ```
 
@@ -252,6 +245,16 @@ dropdb restore_test
 ```
 
 A successful restore with matching row counts confirms the backup is usable.
+
+---
+
+## Analytics Integration Status
+
+Current platform-by-capability implementation status for analytics integrations is tracked in:
+
+- `backend/docs/analytics-integration-status.md`
+
+Use that matrix as the source of truth for whether each platform capability is **implemented**, **partial**, or **planned**, including owner paths and roadmap links.
 
 ---
 
