@@ -380,3 +380,129 @@ The `/health` endpoint also reports Redis and queue connectivity — check it af
 ```bash
 curl -s http://localhost:$BACKEND_PORT/health | jq .
 ```
+
+---
+
+## Rate-limit validation runbook
+
+The script `backend/scripts/test-rate-limit.sh` exercises all three rate limiters and exits non-zero on any failure. Run it against a live server — it does not start one.
+
+### Limiter reference
+
+| Limiter | Applied to | Window | Limit | Store (prod) |
+|---------|-----------|--------|-------|--------------|
+| `authLimiter` | `POST /api/auth/login` (and all `/api/auth/*`) | 15 min | 10 req | Redis |
+| `aiLimiter` | `/api/ai/*`, `/api/tts/*`, `/api/translation/*` | 1 min | 30 req | Redis |
+| `generalLimiter` | All other `/api/v1/*` routes | 1 min | 100 req | Redis |
+
+In `development` and `test` the store falls back to in-process memory (Redis is not required). In `production` the Redis store is loaded automatically — limits are shared across all instances.
+
+### Response shape on 429
+
+Every limiter returns the same JSON body:
+
+```json
+{
+  "success": false,
+  "code": "RATE_LIMIT_EXCEEDED",
+  "message": "Too many requests. Please slow down and try again later.",
+  "retryAfter": 60,
+  "timestamp": "2026-03-28T12:00:00.000Z"
+}
+```
+
+Response headers (RFC 6585 `standardHeaders: true`, legacy headers disabled):
+
+| Header | Meaning |
+|--------|---------|
+| `RateLimit-Limit` | Configured max for this window |
+| `RateLimit-Remaining` | Requests left in the current window |
+| `RateLimit-Reset` | Unix timestamp when the window resets |
+| `Retry-After` | Seconds until the client may retry (present on 429 only) |
+
+### Auth vs pre-auth limiter behaviour
+
+The `authLimiter` is mounted **before** the authentication middleware on `/api/auth/*`. This means:
+
+- Requests are counted regardless of whether credentials are valid.
+- A 429 is returned before any credential check occurs — the response body will be the rate-limit JSON, not an auth error.
+- The window is intentionally long (15 min) to slow credential-stuffing attacks.
+
+The `aiLimiter` is also mounted before auth on `/api/ai/*`, `/api/tts/*`, and `/api/translation/*`. Unauthenticated requests normally receive `401`, but once the limit is exhausted they receive `429` instead. The script relies on this: it sends requests without a token and expects `401` for the first 30, then `429` on the 31st.
+
+### Running locally
+
+```bash
+# Start the server in a separate terminal
+cd backend && npm run dev
+
+# Run the script (defaults to http://localhost:3001)
+bash backend/scripts/test-rate-limit.sh
+
+# Or against a custom URL
+bash backend/scripts/test-rate-limit.sh http://localhost:4000
+```
+
+Expected output:
+
+```
+=== Rate Limit Tests against http://localhost:3001 ===
+
+── Auth limiter (POST /api/auth/login, limit=10) ──
+  ✓ 11th request returns 429 (got 429)
+
+── AI limiter (POST /api/ai/analyze-image, limit=30) ──
+  ✓ 31st request returns 429 (got 429)
+
+── General limiter (GET /api/health, limit=100) ──
+  ✓ 101st request returns 429 (got 429)
+
+=== Results: 3 passed, 0 failed ===
+```
+
+The script exits `0` on full pass, `1` if any check fails.
+
+### Running in CI
+
+The script requires a running server and `curl`. A minimal GitHub Actions job:
+
+```yaml
+- name: Start server
+  working-directory: backend
+  run: npm run dev &
+  env:
+    DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+    JWT_SECRET: ${{ secrets.JWT_SECRET }}
+    JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+    TWITTER_API_KEY: placeholder
+    TWITTER_API_SECRET: placeholder
+    NODE_ENV: test
+
+- name: Wait for server
+  run: npx wait-on http://localhost:3001/health --timeout 30000
+
+- name: Rate-limit smoke test
+  run: bash backend/scripts/test-rate-limit.sh
+```
+
+Key points for CI:
+
+- `NODE_ENV=test` keeps the store in-memory — no Redis needed.
+- Each limiter window resets between CI runs because the in-memory store is process-scoped. If you run the script twice in the same process lifetime without restarting, the counters carry over and the second run will hit 429 immediately on the auth and AI checks. Restart the server between runs or add a sleep longer than the window (15 min for auth, 1 min for AI/general).
+- The script is sequential (`curl` calls are not parallelised), so it is safe to run alongside other tests without cross-contamination.
+
+### Troubleshooting
+
+**All checks fail with `000`** — `curl` could not reach the server. Confirm the server is up:
+
+```bash
+curl -v http://localhost:3001/health
+```
+
+**Auth check fails — got `401` instead of `429`** — the in-memory counter was reset (server restarted between runs). Re-run without restarting the server.
+
+**AI check fails — got `401` on the 31st request** — the AI limiter window (1 min) may have rolled over mid-loop. The 31 requests must complete within 60 seconds. On slow CI runners, add a warm-up check or reduce the window in the test environment.
+
+**General check fails in production** — the Redis store is shared across instances. If multiple replicas are running, the 100-request budget is consumed across all of them. Run the script against a single isolated instance or a staging environment with one replica.
+
+**429 body is not JSON** — a reverse proxy (nginx, ALB) may be intercepting and returning its own 429 before the request reaches the app. Check proxy rate-limit configuration.
