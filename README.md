@@ -90,6 +90,73 @@ Environment validation failed:
   • JWT_SECRET: Invalid input: expected string, received undefined
 ```
 
+## Distributed Tracing (OpenTelemetry)
+
+Tracing is initialised in `src/tracing.ts` (frontend/shared) and `backend/src/tracing.ts` (backend server). Both files **must be imported before any other module** so auto-instrumentation patches are applied at load time.
+
+### Exporters
+
+Select the exporter with `OTEL_EXPORTER`:
+
+| Value | Destination | Required extra vars |
+|---|---|---|
+| `jaeger` (default) | Jaeger HTTP collector | `JAEGER_ENDPOINT` |
+| `honeycomb` | Honeycomb OTLP endpoint | `HONEYCOMB_API_KEY`, `HONEYCOMB_DATASET` |
+| `otlp` | Any OTLP/HTTP backend (Grafana Tempo, Lightstep, …) | `OTEL_EXPORTER_OTLP_ENDPOINT` |
+
+### Span processor
+
+The backend selects the processor based on `OTEL_DEBUG`:
+
+| `OTEL_DEBUG` | Processor | Behaviour |
+|---|---|---|
+| `false` (default) | `BatchSpanProcessor` | Buffers spans; exports every 5 s or when the queue (512) is full. Low overhead — use in production. |
+| `true` | `SimpleSpanProcessor` | Exports each span synchronously as it ends. High overhead — use only for local debugging. |
+
+The frontend/shared `src/tracing.ts` always uses `BatchSpanProcessor`.
+
+### Debug flag
+
+```bash
+OTEL_DEBUG=true   # enables DiagConsoleLogger at DEBUG level + SimpleSpanProcessor (backend)
+```
+
+With `OTEL_DEBUG=true` every span export attempt, SDK lifecycle event, and internal OTel error is printed to stdout. Disable in production — it is verbose and adds per-span I/O latency.
+
+### Recommended production defaults
+
+```bash
+OTEL_EXPORTER=otlp                              # or honeycomb
+OTEL_EXPORTER_OTLP_ENDPOINT=http://<collector>:4318/v1/traces
+OTEL_SERVICE_NAME=socialflow-backend
+OTEL_DEBUG=false
+NODE_ENV=production
+```
+
+### Shutdown lifecycle
+
+On `SIGTERM` or `SIGINT` the server runs a **graceful shutdown sequence** (30 s hard timeout):
+
+1. HTTP server stops accepting new connections.
+2. BullMQ workers, webhook workers, scheduled jobs, and the queue manager are closed.
+3. Prisma disconnects from the database.
+4. The OTel SDK calls `sdk.shutdown()`, which flushes all buffered spans to the exporter before the process exits.
+
+If `sdk.shutdown()` is skipped (e.g. `process.exit()` called directly) any spans still in the `BatchSpanProcessor` queue are lost. Always let the signal handlers complete.
+
+The backend's `SIGTERM` handler in `tracing.ts` is intentionally separate from the main shutdown sequence so the OTel flush happens even if the application-level shutdown throws.
+
+### Troubleshooting missing traces
+
+- **No spans in Jaeger / collector** — confirm the collector is reachable: `curl -v $JAEGER_ENDPOINT`. Check for `ECONNREFUSED` in logs.
+- **Spans appear after a delay** — expected with `BatchSpanProcessor` (up to 5 s). Set `OTEL_DEBUG=true` temporarily to see spans immediately.
+- **`HONEYCOMB_API_KEY is not set` warning** — set the key or switch `OTEL_EXPORTER` to `jaeger`/`otlp`.
+- **Spans missing on crash / `kill -9`** — `SIGKILL` bypasses signal handlers; buffered spans are dropped. Use `SIGTERM` for container stops (`terminationGracePeriodSeconds` in Kubernetes).
+- **Auto-instrumentation not capturing a library** — ensure `import './tracing'` is the very first line of the entry point, before any other imports.
+- **`OTEL_DEBUG=true` but no output** — the logger is set on the global `diag` singleton; verify no other module calls `diag.setLogger` after tracing initialises.
+
+---
+
 ## Running tests
 
 ```bash
