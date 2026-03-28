@@ -225,9 +225,12 @@ process.on('SIGTERM', () => {
 });
 
 /**
- * Bootstrap the application
+ * Bootstrap the application.
+ * @param exit - Injectable exit handler (defaults to process.exit). Injected in tests.
  */
-const bootstrap = async (): Promise<void> => {
+export const bootstrap = async (
+  exit: (code: number) => void = (code) => process.exit(code),
+): Promise<void> => {
   try {
     // Initialize job queue workers
     logger.info('Initializing job queue workers...');
@@ -331,7 +334,7 @@ const bootstrap = async (): Promise<void> => {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
-    process.exit(1);
+    exit(1);
   }
 };
 

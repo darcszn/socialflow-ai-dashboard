@@ -50,7 +50,7 @@ jest.mock('../app', () => ({
   },
 }));
 
-import { gracefulShutdown, _resetShutdownState, ShutdownDeps } from '../server';
+import { gracefulShutdown, _resetShutdownState, bootstrap, ShutdownDeps } from '../server';
 import { prisma } from '../lib/prisma';
 import { stopWorkerMonitor } from '../monitoring/workerMonitorInstance';
 import { stopHealthMonitoringJob } from '../jobs/healthMonitoringJob';
@@ -222,5 +222,69 @@ describe('gracefulShutdown — cleanup resilience', () => {
     await gracefulShutdown('SIGTERM', 0, makeDeps(), { exit, timeoutMs: 5000 });
     expect(exit).toHaveBeenCalledWith(0);
     expect(prisma.$disconnect).toHaveBeenCalled();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// bootstrap — exit code injection
+// ═══════════════════════════════════════════════════════════════════════════════
+
+import app from '../app';
+
+describe('bootstrap — exit code injection', () => {
+  it('calls exit(1) via injected handler when bootstrap throws', async () => {
+    const exit = jest.fn();
+    (app.listen as jest.Mock).mockImplementationOnce(() => { throw new Error('port in use'); });
+    await bootstrap(exit);
+    expect(exit).toHaveBeenCalledWith(1);
+    // process.exit must NOT have been called directly
+    expect(mockProcessExit).not.toHaveBeenCalled();
+  });
+
+  it('does not call exit when bootstrap succeeds', async () => {
+    const exit = jest.fn();
+    (app.listen as jest.Mock).mockImplementationOnce((_port: number, cb: () => void) => {
+      cb();
+      return { on: jest.fn() };
+    });
+    await bootstrap(exit);
+    expect(exit).not.toHaveBeenCalled();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// shutdownOtel — timeout control
+// ═══════════════════════════════════════════════════════════════════════════════
+
+jest.mock('../tracing', () => {
+  const sdkShutdown = jest.fn();
+  return { sdk: { shutdown: sdkShutdown }, shutdownOtel: jest.requireActual('../tracing').shutdownOtel };
+});
+
+// Re-import after mock so we get the mocked sdk
+import { shutdownOtel } from '../tracing';
+import { sdk } from '../tracing';
+
+describe('shutdownOtel — timeout control', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('resolves when sdk.shutdown() completes within timeout', async () => {
+    (sdk.shutdown as jest.Mock).mockResolvedValueOnce(undefined);
+    await expect(shutdownOtel(1000)).resolves.toBeUndefined();
+  });
+
+  it('logs error and resolves when sdk.shutdown() rejects', async () => {
+    (sdk.shutdown as jest.Mock).mockRejectedValueOnce(new Error('export failed'));
+    await expect(shutdownOtel(1000)).resolves.toBeUndefined();
+  });
+
+  it('logs error and resolves when sdk.shutdown() exceeds timeoutMs', async () => {
+    (sdk.shutdown as jest.Mock).mockImplementationOnce(
+      () => new Promise(() => { /* never resolves */ }),
+    );
+    const p = shutdownOtel(100);
+    jest.advanceTimersByTime(100);
+    await expect(p).resolves.toBeUndefined();
   });
 });
