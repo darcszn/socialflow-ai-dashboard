@@ -1,6 +1,9 @@
 import { Queue, Worker, QueueEvents, JobsOptions, ConnectionOptions } from 'bullmq';
 import Redis from 'ioredis';
 import { config } from '../config/config';
+import { createLogger } from '../lib/logger';
+
+const logger = createLogger('queue-manager');
 
 /**
  * Parse Redis URL into connection options
@@ -18,14 +21,14 @@ function parseRedisUrl(url: string): ConnectionOptions {
       maxRetriesPerRequest: null,
       retryStrategy: (times: number) => {
         if (times > 10) {
-          console.error('Redis connection failed after 10 retries');
+          logger.error('Redis connection failed after 10 retries');
           return null;
         }
         return Math.min(times * 100, 3000);
       },
     };
   } catch (error) {
-    console.error('Failed to parse REDIS_URL, falling back to default:', error);
+    logger.error('Failed to parse REDIS_URL, falling back to default', { error });
     return {
       host: 'localhost',
       port: 6379,
@@ -42,12 +45,12 @@ function createRedisConnection(): ConnectionOptions {
   const redisUrl = process.env.REDIS_URL;
 
   if (redisUrl) {
-    console.log('Using Redis connection from REDIS_URL');
+    logger.info('Using Redis connection from REDIS_URL');
     return parseRedisUrl(redisUrl);
   }
 
   // Fallback to individual config values
-  console.log('Using Redis connection from config (REDIS_HOST, REDIS_PORT)');
+  logger.info('Using Redis connection from config (REDIS_HOST, REDIS_PORT)');
   return {
     host: config.REDIS_HOST,
     port: config.REDIS_PORT,
@@ -55,7 +58,7 @@ function createRedisConnection(): ConnectionOptions {
     maxRetriesPerRequest: null,
     retryStrategy: (times: number) => {
       if (times > 10) {
-        console.error('Redis connection failed after 10 retries');
+        logger.error('Redis connection failed after 10 retries');
         return null;
       }
       return Math.min(times * 100, 3000);
@@ -66,14 +69,8 @@ function createRedisConnection(): ConnectionOptions {
 // Redis connection configuration using REDIS_URL or fallback
 const connection: ConnectionOptions = createRedisConnection();
 
-// Create ioredis instance for direct Redis operations if needed
-export const redisClient = process.env.REDIS_URL
-  ? new Redis(process.env.REDIS_URL)
-  : new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-      password: process.env.REDIS_PASSWORD || undefined,
-    });
+// Shared ioredis client built from the same validated config path
+export const redisClient = new Redis(createRedisConnection() as any);
 
 // Queue options interface
 export interface QueueConfig {
@@ -117,19 +114,19 @@ export class QueueManager {
     this.queueEvents.set(name, queueEvents);
 
     queueEvents.on('completed', ({ jobId, returnvalue }) => {
-      console.log(`Job ${jobId} completed with result:`, returnvalue);
+      logger.info(`Job ${jobId} completed`, { returnvalue });
     });
 
     queueEvents.on('failed', ({ jobId, failedReason }) => {
-      console.error(`Job ${jobId} failed:`, failedReason);
+      logger.error(`Job ${jobId} failed`, { failedReason });
     });
 
     queueEvents.on('stalled', ({ jobId }) => {
-      console.warn(`Job ${jobId} stalled`);
+      logger.warn(`Job ${jobId} stalled`);
     });
 
     this.queues.set(name, queue);
-    console.log(`Queue "${name}" created`);
+    logger.info(`Queue "${name}" created`);
 
     return queue;
   }
@@ -154,27 +151,27 @@ export class QueueManager {
 
     // Error handling
     worker.on('failed', (job, err) => {
-      console.error(`Job ${job?.id} failed:`, err);
+      logger.error(`Job ${job?.id} failed`, { error: err.message });
     });
 
     worker.on('completed', (job) => {
-      console.log(`Job ${job.id} completed`);
+      logger.info(`Job ${job.id} completed`);
     });
 
     worker.on('active', (job) => {
-      console.log(`Job ${job.id} started processing`);
+      logger.info(`Job ${job.id} started processing`);
     });
 
     worker.on('stalled', (jobId) => {
-      console.warn(`Job ${jobId} stalled and will be retried`);
+      logger.warn(`Job ${jobId} stalled and will be retried`);
     });
 
     worker.on('error', (err) => {
-      console.error(`Worker error for queue "${name}":`, err);
+      logger.error(`Worker error for queue "${name}"`, { error: err.message });
     });
 
     this.workers.set(name, worker);
-    console.log(`Worker for queue "${name}" created`);
+    logger.info(`Worker for queue "${name}" created`);
 
     return worker;
   }
@@ -250,7 +247,7 @@ export class QueueManager {
       jobId: `${queueName}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     });
 
-    console.log(`Job "${jobName}" added to queue "${queueName}" with ID: ${job.id}`);
+    logger.info(`Job "${jobName}" added to queue "${queueName}"`, { jobId: job.id });
     return job.id;
   }
 
@@ -280,8 +277,7 @@ export class QueueManager {
     }));
 
     const addedJobs = await queue.addBulk(bulkJobs);
-    console.log(`Added ${addedJobs.length} jobs to queue "${queueName}"`);
-
+    logger.info(`Added ${addedJobs.length} jobs to queue "${queueName}"`);
     return addedJobs.map((job) => job.id as string);
   }
 
@@ -322,56 +318,44 @@ export class QueueManager {
     const queue = this.queues.get(name);
     if (queue) {
       await queue.pause();
-      console.log(`Queue "${name}" paused`);
+      logger.info(`Queue "${name}" paused`);
     }
   }
 
-  /**
-   * Resume a queue
-   */
   async resumeQueue(name: string): Promise<void> {
     const queue = this.queues.get(name);
     if (queue) {
       await queue.resume();
-      console.log(`Queue "${name}" resumed`);
+      logger.info(`Queue "${name}" resumed`);
     }
   }
 
-  /**
-   * Clear all jobs from a queue
-   */
   async clearQueue(name: string): Promise<void> {
     const queue = this.queues.get(name);
     if (queue) {
       await queue.drain();
-      console.log(`Queue "${name}" cleared`);
+      logger.info(`Queue "${name}" cleared`);
     }
   }
 
-  /**
-   * Remove a specific job
-   */
   async removeJob(queueName: string, jobId: string): Promise<void> {
     const queue = this.queues.get(queueName);
     if (queue) {
       const job = await queue.getJob(jobId);
       if (job) {
         await job.remove();
-        console.log(`Job ${jobId} removed from queue "${queueName}"`);
+        logger.info(`Job ${jobId} removed from queue "${queueName}"`);
       }
     }
   }
 
-  /**
-   * Retry a failed job
-   */
   async retryJob(queueName: string, jobId: string): Promise<void> {
     const queue = this.queues.get(queueName);
     if (queue) {
       const job = await queue.getJob(jobId);
       if (job) {
         await job.retry();
-        console.log(`Job ${jobId} retry initiated`);
+        logger.info(`Job ${jobId} retry initiated`);
       }
     }
   }
@@ -387,7 +371,7 @@ export class QueueManager {
    * Close all queues and workers gracefully
    */
   async closeAll(): Promise<void> {
-    console.log('Closing all queues and workers...');
+    logger.info('Closing all queues and workers...');
 
     // Close all workers first
     const workerClosePromises = Array.from(this.workers.values()).map((worker) => worker.close());
@@ -402,7 +386,7 @@ export class QueueManager {
 
     await Promise.all([...workerClosePromises, ...eventsClosePromises, ...queueClosePromises]);
 
-    console.log('All queues, workers, and connections closed');
+    logger.info('All queues, workers, and connections closed');
   }
 }
 
